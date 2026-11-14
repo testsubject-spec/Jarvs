@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Jarvs</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--void:#06080d;--glass:rgba(20,27,43,.55);--line:rgba(255,255,255,.09);--mars:#ff6b3d;--ice:#6fe3ff;--tx:#e6ecf5;--dim:#8b97ab;--ok:#5be3a1}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font:500 16px/1.45 Rajdhani,'Segoe UI',system-ui,sans-serif;color:var(--tx);overflow:hidden;background:radial-gradient(900px 600px at 85% 110%,rgba(255,107,61,.22),transparent 60%),radial-gradient(700px 500px at 0 -10%,rgba(111,227,255,.14),transparent 60%),var(--void)}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;background:linear-gradient(var(--line) 1px,transparent 1px) 0 0/48px 48px,linear-gradient(90deg,var(--line) 1px,transparent 1px) 0 0/48px 48px;-webkit-mask-image:radial-gradient(circle at 50% 40%,#000,transparent 75%);mask-image:radial-gradient(circle at 50% 40%,#000,transparent 75%)}
+.app{position:relative;display:grid;grid-template-columns:220px minmax(0,1fr);height:100%}
+.glass{background:var(--glass);border:1px solid var(--line);border-radius:14px;-webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 40px rgba(0,0,0,.35)}
+.side{margin:12px;padding:18px 12px;display:flex;flex-direction:column;gap:6px}
+.brand{font-size:22px;font-weight:700;letter-spacing:.04em;padding:0 10px 14px}.brand span{color:var(--mars)}
+.side button{all:unset;cursor:pointer;display:flex;gap:12px;align-items:center;padding:10px 12px;border-radius:10px;color:var(--dim);font-weight:600}
+.side button:hover{color:var(--tx);background:rgba(255,255,255,.05)}
+.side button.on{color:var(--tx)}
+.side button{position:relative;z-index:1;transition:color .35s,background .35s}
+.side{position:relative}
+.ind{position:absolute;left:0;top:0;width:0;height:0;border-radius:10px;background:rgba(255,107,61,.16);box-shadow:inset 3px 0 var(--mars);pointer-events:none}
+.ind.ready{transition:transform .6s cubic-bezier(.22,1,.36,1),width .6s cubic-bezier(.22,1,.36,1),height .6s cubic-bezier(.22,1,.36,1)}
+.side button:focus-visible,.btn:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--ice);outline-offset:2px}
+main{min-height:0;overflow-y:auto;padding:20px 24px 24px 8px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+h1{font-size:28px}h2{font-size:24px}h3{font-size:18px;margin-bottom:8px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}.chip{padding:3px 12px;border:1px solid var(--line);border-radius:99px;font-size:14px;color:var(--dim)}
+.chip.ok{color:var(--ok);border-color:rgba(91,227,161,.4)}
+.view{display:none;gap:14px;flex-direction:column}
+.view.on{display:flex;animation:fadeIn .45s ease both}
+.view.on>*{animation:rise .75s cubic-bezier(.22,1,.36,1) both}
+.view.on>:nth-child(2){animation-delay:.07s}.view.on>:nth-child(3){animation-delay:.14s}.view.on>:nth-child(n+4){animation-delay:.2s}
+.view.out{animation:fadeOut .22s ease both;pointer-events:none}
+.view.out>*{animation:none}
+@keyframes fadeIn{from{opacity:0}}@keyframes fadeOut{to{opacity:0}}
+@keyframes rise{from{opacity:0;transform:translate3d(0,24px,0)}}
+.pad{padding:16px}.dim{color:var(--dim)}
+.hero{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 16px;text-align:center}
+.orb{--c:var(--ice);width:min(250px,60vw);aspect-ratio:1;position:relative;display:grid;place-items:center;margin-bottom:8px}
+.orb i{position:absolute;inset:0;border-radius:50%;border:2px solid transparent;border-top-color:var(--c);border-bottom-color:var(--c);animation:spin 9s linear infinite}
+.orb i:nth-child(2){inset:12%;border-color:transparent;border-left-color:var(--mars);border-right-color:var(--mars);animation-duration:6s;animation-direction:reverse}
+.orb i:nth-child(3){inset:24%;border:1px dashed var(--dim);animation-duration:22s}
+.orb b{width:34%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,#fff 0,var(--c) 35%,transparent 70%);box-shadow:0 0 50px var(--c);animation:breathe 4s ease-in-out infinite}
+[data-state=listening] .orb{--c:var(--ok)}[data-state=speaking] .orb{--c:var(--mars)}[data-state=speaking] .orb b{animation-duration:.7s}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes breathe{50%{transform:scale(1.18);opacity:.8}}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px}
+.stats div{padding:14px 16px}.stats strong{display:block;font-size:32px;color:var(--ice)}
+.btn{cursor:pointer;font:600 16px Rajdhani,system-ui,sans-serif;color:var(--tx);background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:10px;padding:8px 16px}
+.btn{transition:background .3s,color .3s,border-color .3s,transform .25s cubic-bezier(.22,1,.36,1)}.btn:active{transform:scale(.96)}
+.btn:hover{background:rgba(255,255,255,.13)}.btn.pri{background:var(--mars);border-color:var(--mars);color:#150602}.btn.on{border-color:var(--ok);color:var(--ok)}.btn.danger:hover{background:rgba(255,80,80,.25)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.row>input{flex:1;min-width:140px}
+input,textarea,select{font:500 16px Rajdhani,system-ui,sans-serif;color:var(--tx);background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:10px;padding:9px 12px;width:100%}
+textarea{min-height:90px;resize:vertical}select{width:auto}
+label{display:block;margin:10px 0 4px;color:var(--dim);font-size:14px}
+.list{list-style:none;padding:0;display:flex;flex-direction:column;gap:8px}
+.item{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;padding:12px 14px}
+.item p{white-space:pre-wrap;color:var(--dim);margin-top:2px}.item.done strong{text-decoration:line-through;color:var(--dim)}
+.item .act{display:flex;gap:6px;flex-shrink:0}.item .btn{padding:4px 10px;font-size:14px}
+.badge{border-radius:99px;padding:1px 10px;font-size:13px;border:1px solid var(--line);cursor:pointer;background:none;color:var(--tx);font-family:inherit}
+.badge.high{color:var(--mars);border-color:var(--mars)}.badge.medium{color:var(--ice);border-color:var(--ice)}
+.log{list-style:none;padding:0;max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.log li b{color:var(--ice);margin-right:6px}.log li.j b{color:var(--mars)}
+.empty{color:var(--dim);padding:8px 2px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:10px 18px;border-radius:99px;z-index:9;display:none}
+@media(max-width:760px){.app{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
+.side{order:2;flex-direction:row;margin:0 8px calc(8px + env(safe-area-inset-bottom,0px));padding:6px;justify-content:space-around}
+.brand{display:none}.ind{box-shadow:inset 0 -3px var(--mars)}.side button{flex-direction:column;gap:0;padding:6px 8px;font-size:13px}main{padding:14px 12px}h1{font-size:24px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head>
+<body data-state="idle">
+<div class="app">
+<nav class="glass side" aria-label="Sections">
+ <div class="brand">Jarvs</div><i class="ind"></i>
+ <button data-go="home" class="on">⌂ Home</button><button data-go="memory">✦ Memory</button><button data-go="tasks">☑ Tasks</button><button data-go="voice">◉ Voice</button><button data-go="settings">⚙ Settings</button>
+</nav>
+<main>
+ <header class="top"><h1 id="title">Home</h1><div class="chips"><span id="drive" class="chip">Drive: not connected</span><span id="sync" class="chip">Session only</span></div></header>
+
+ <section id="home" class="view on">
+  <div class="glass hero"><div class="orb"><i></i><i></i><i></i><b></b></div>
+   <h2 id="greet"></h2><p id="stateTxt" class="dim"></p>
+   <div class="row"><button class="btn pri" data-act="listen">Start listening</button><button class="btn" data-act="connect">Connect Google Drive</button></div></div>
+  <div class="stats"><div class="glass"><strong id="sN">0</strong>Notes</div><div class="glass"><strong id="sT">0</strong>Open tasks</div><div class="glass"><strong id="sC">0</strong>Commands</div></div>
+  <div class="glass pad"><h3>Recent activity</h3><ul id="recent" class="log"></ul></div>
+ </section>
+
+ <section id="memory" class="view">
+  <div class="glass pad"><h3 id="nform">New note</h3>
+   <input id="nt" placeholder="Title" aria-label="Note title"><label for="nb">Note</label><textarea id="nb"></textarea>
+   <div class="row" style="margin-top:10px"><button class="btn pri" data-act="save-note" id="nsave">Save note</button><button class="btn" data-act="cancel-note" id="ncancel" hidden>Cancel</button></div></div>
+  <input id="nq" placeholder="Search notes" aria-label="Search notes">
+  <ul id="notes" class="list"></ul>
+ </section>
+
+ <section id="tasks" class="view">
+  <div class="glass pad"><div class="row"><input id="tt" placeholder="Add a task" aria-label="Task">
+   <select id="tp" aria-label="Priority"><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select>
+   <button class="btn pri" data-act="add-task">Add task</button></div></div>
+  <ul id="tlist" class="list"></ul>
+ </section>
+
+ <section id="voice" class="view">
+  <div class="glass pad"><div class="row">
+   <button class="btn" id="bListen" data-act="listen">Start listening</button>
+   <button class="btn" id="bPtt">Hold to talk</button>
+   <button class="btn" id="bMute" data-act="mute">Mute voice</button></div>
+   <p class="dim" id="vHint" style="margin-top:10px"></p>
+   <div class="row" style="margin-top:10px"><input id="cmd" placeholder="Or type a command, e.g. add note blockchain idea" aria-label="Type a command"><button class="btn" data-act="send-cmd">Run</button></div></div>
+  <div class="glass pad"><h3>Command history</h3><ul id="hist" class="log"></ul></div>
+ </section>
+
+ <section id="settings" class="view">
+  <div class="glass pad"><h3>Google Drive</h3>
+   <label for="cid">OAuth client ID (Web application)</label><input id="cid" placeholder="123456-abc.apps.googleusercontent.com">
+   <div class="row" style="margin-top:10px"><button class="btn pri" data-act="save-cid">Save client ID</button><button class="btn" data-act="connect">Connect</button><button class="btn danger" data-act="disconnect">Disconnect</button></div>
+   <p class="dim" style="margin-top:10px">Create a Web OAuth client in Google Cloud, enable the Drive API, and add this page’s address under Authorized JavaScript origins. Jarvs keeps its memory in one file, jarvis_data.json, in your Drive.</p></div>
+  <div class="glass pad"><h3>Voice</h3>
+   <label for="wake">Wake word</label><input id="wake">
+   <label for="rate">Speech speed</label><input id="rate" type="range" min=".7" max="1.4" step=".1">
+   <label for="vsel">Voice</label><select id="vsel" style="max-width:100%"></select></div>
+ </section>
+</main></div>
+<div id="toast" class="glass" role="status"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer onload="initAuth()"></script>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const DEF=()=>({notes:[],tasks:[],research:[],settings:{wake:'jarvis',rate:1,voice:''},conversations:[]});
+let D=DEF(),token=null,fileId=null,tc=null,saveT,muted=false,listening=false,speaking=false,hold=false,armed=0,rec=null,editId=null;
+let clientId='';try{clientId=localStorage.getItem('mj_client_id')||''}catch(e){} // only bootstrap setting; all data lives in Drive
+
+/* ---------- Google auth + Drive memory ---------- */
+function initAuth(){
+ if(!clientId||!window.google)return;
+ tc=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:'https://www.googleapis.com/auth/drive.file',
+  callback:async r=>{if(r.access_token){token=r.access_token;setDrive();try{await loadMemory();speak('Drive connected. Memory loaded.')}catch(e){toast('Could not load memory from Drive')}}}});
+}
+async function drive(url,opt={}){
+ const r=await fetch(url,{...opt,headers:{Authorization:'Bearer '+token,...(opt.headers||{})}});
+ if(r.status===401){token=null;setDrive();toast('Drive session expired. Connect again.')}
+ if(!r.ok)throw new Error('Drive '+r.status);return r;
+}
+async function loadMemory(){
+ const q=encodeURIComponent("name='jarvis_data.json' and trashed=false");
+ const l=await(await drive(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`)).json();
+ if(l.files.length){fileId=l.files[0].id;D={...DEF(),...await(await drive(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).json()};}
+ else{await createFile()}
+ fillSettings();render();sync('Synced');
+}
+async function createFile(){
+ const b='mjbound',meta={name:'jarvis_data.json',mimeType:'application/json'};
+ const body=`--${b}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(D)}\r\n--${b}--`;
+ const r=await(await drive('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body})).json();
+ fileId=r.id;
+}
+function saveMemory(){
+ if(!fileId||!token)return;sync('Saving…');clearTimeout(saveT);
+ saveT=setTimeout(async()=>{try{await drive(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(D)});sync('Synced')}catch(e){sync('Save failed')}},700);
+}
+function addMemory(c,o){const x={id:uid(),created:Date.now(),...o};D[c].unshift(x);saveMemory();render();return x}
+function editMemory(c,id,p){const x=D[c].find(i=>i.id===id);if(x)Object.assign(x,p,{updated:Date.now()});saveMemory();render()}
+function deleteMemory(c,id){D[c]=D[c].filter(i=>i.id!==id);saveMemory();render()}
+const find=(c,q)=>D[c].find(i=>((i.title||i.text||'')+' '+(i.body||'')).toLowerCase().includes(q));
+
+/* ---------- UI ---------- */
+const titles={home:'Home',memory:'Memory',tasks:'Tasks',voice:'Voice console',settings:'Settings'};
+let goT;
+function moveInd(){const b=$('[data-go].on'),i=$('.ind');if(!b||!i)return;i.style.width=b.offsetWidth+'px';i.style.height=b.offsetHeight+'px';i.style.transform=`translate(${b.offsetLeft}px,${b.offsetTop}px)`}
+function go(v){
+ clearTimeout(goT);$$('.view.out').forEach(e=>e.classList.remove('on','out'));
+ const cur=$('.view.on'),nx=$('#'+v);
+ $$('[data-go]').forEach(b=>b.classList.toggle('on',b.dataset.go===v));moveInd();
+ if(cur===nx)return;
+ $('#title').textContent=titles[v];
+ $('#title').animate([{opacity:0,transform:'translateY(10px)'},{opacity:1,transform:'none'}],{duration:550,easing:'cubic-bezier(.22,1,.36,1)'});
+ if(cur)cur.classList.add('out');
+ goT=setTimeout(()=>{if(cur)cur.classList.remove('on','out');nx.classList.add('on');$('main').scrollTop=0},cur?220:0);
+}
+function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',3200)}
+function sync(t){$('#sync').textContent=t}
+function setDrive(){const e=$('#drive');e.textContent=token?'Drive: connected':'Drive: not connected';e.classList.toggle('ok',!!token);if(!token)sync('Session only')}
+function orb(){
+ const s=speaking?'speaking':listening?'listening':'idle';document.body.dataset.state=s;
+ $('#stateTxt').textContent=speaking?'Speaking…':listening?`Listening for “${D.settings.wake}”`:'Voice is off. Start listening to use the wake word.';
+ $$('[data-act=listen]').forEach(b=>{b.textContent=listening?'Stop listening':'Start listening';b.classList.toggle('on',listening)});
+ $('#bMute').textContent=muted?'Unmute voice':'Mute voice';$('#bMute').classList.toggle('on',muted);
+ $('#vHint').textContent=`Say “${D.settings.wake}” followed by a command. Try: add note blockchain idea, add task call Sam, complete task call Sam, show notes.`;
+}
+const rank={high:0,medium:1,low:2};
+function filterNotes(){const q=$('#nq').value.toLowerCase().trim();return D.notes.filter(n=>!q||(n.title+' '+n.body).toLowerCase().includes(q))}
+function renderNotes(){
+ const l=filterNotes();
+ $('#notes').innerHTML=l.length?l.map(n=>`<li class="glass item"><div><strong>${esc(n.title)}</strong><p>${esc(n.body)}</p></div><div class="act"><button class="btn" data-act="edit-note" data-id="${n.id}">Edit</button><button class="btn danger" data-act="del-note" data-id="${n.id}">Delete</button></div></li>`).join(''):'<li class="empty">No notes yet. Write one above or say “add note …”.</li>';
+}
+function renderTasks(){
+ const l=[...D.tasks].sort((a,b)=>a.done-b.done||rank[a.priority]-rank[b.priority]);
+ $('#tlist').innerHTML=l.length?l.map(t=>`<li class="glass item ${t.done?'done':''}"><div class="row"><input type="checkbox" style="width:auto" ${t.done?'checked':''} data-act="done-task" data-id="${t.id}" aria-label="Complete task"><strong>${esc(t.text)}</strong><button class="badge ${t.priority}" data-act="prio-task" data-id="${t.id}" title="Change priority">${t.priority}</button></div><div class="act"><button class="btn danger" data-act="del-task" data-id="${t.id}">Delete</button></div></li>`).join(''):'<li class="empty">No tasks. Add one above or say “add task …”.</li>';
+}
+function renderLogs(){
+ const h=[...D.conversations].reverse();
+ const li=x=>`<li class="${x.who==='J'?'j':''}"><b>${x.who==='J'?'Jarvis':'You'}</b>${esc(x.text)}</li>`;
+ $('#hist').innerHTML=h.length?h.map(li).join(''):'<li class="empty">No commands yet.</li>';
+ $('#recent').innerHTML=h.length?h.slice(0,5).map(li).join(''):'<li class="empty">Nothing yet. Say the wake word or type a command in Voice.</li>';
+}
+function render(){
+ $('#sN').textContent=D.notes.length;$('#sT').textContent=D.tasks.filter(t=>!t.done).length;$('#sC').textContent=D.conversations.filter(c=>c.who==='You').length;
+ renderNotes();renderTasks();renderLogs();orb();
+}
+function fillSettings(){$('#cid').value=clientId;$('#wake').value=D.settings.wake;$('#rate').value=D.settings.rate;loadVoices()}
+function loadVoices(){
+ const v=window.speechSynthesis?speechSynthesis.getVoices():[];
+ $('#vsel').innerHTML='<option value="">Default</option>'+v.map(x=>`<option ${x.name===D.settings.voice?'selected':''}>${esc(x.name)}</option>`).join('');
+}
+
+/* ---------- Notes + tasks actions ---------- */
+function addNote(text,title){return addMemory('notes',{title:title||text.split(/\s+/).slice(0,5).join(' '),body:text})}
+function resetNoteForm(){editId=null;$('#nt').value='';$('#nb').value='';$('#nform').textContent='New note';$('#nsave').textContent='Save note';$('#ncancel').hidden=true}
+function saveNote(){
+ const t=$('#nt').value.trim(),b=$('#nb').value.trim();if(!t&&!b)return toast('Write something first');
+ if(editId)editMemory('notes',editId,{title:t||b.split(/\s+/).slice(0,5).join(' '),body:b});else addNote(b||t,t||undefined);
+ resetNoteForm();
+}
+function addTask(){const t=$('#tt').value.trim();if(!t)return;addMemory('tasks',{text:t,done:false,priority:$('#tp').value});$('#tt').value=''}
+
+/* ---------- Voice ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+function log(who,text){D.conversations.push({id:uid(),t:Date.now(),who,text});if(D.conversations.length>100)D.conversations.shift();saveMemory();renderLogs();$('#sC').textContent=D.conversations.filter(c=>c.who==='You').length}
+function speak(t){
+ log('J',t);if(muted||!window.speechSynthesis)return;
+ const u=new SpeechSynthesisUtterance(t);u.rate=+D.settings.rate||1;
+ const v=speechSynthesis.getVoices().find(x=>x.name===D.settings.voice);if(v)u.voice=v;
+ u.onstart=()=>{speaking=true;orb()};u.onend=u.onerror=()=>{speaking=false;orb()};speechSynthesis.speak(u);
+}
+function newRec(cont,onText){
+ const r=new SR();r.continuous=cont;r.interimResults=false;r.lang='en-US';
+ r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)onText(e.results[i][0].transcript.trim())};
+ r.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){listening=false;hold=false;orb();toast('Microphone access is blocked')}};
+ return r;
+}
+function startListen(){
+ if(!SR)return toast('Speech recognition needs Chrome, Edge or Safari');
+ listening=true;rec=newRec(true,heard);
+ rec.onend=()=>{if(listening&&!hold)setTimeout(()=>{try{rec.start()}catch(e){}},300)};
+ try{rec.start()}catch(e){}orb();
+}
+function stopListen(){listening=false;try{rec&&rec.stop()}catch(e){}orb()}
+function heard(t){
+ if(speaking)return;
+ const re=new RegExp('\\b('+(D.settings.wake||'jarvis').replace(/[^\w ]/g,'')+'|jarvis|jarvus|jervis|travis|java)\\b[,.]?\\s*','i'),m=t.match(re);
+ if(m){const c=t.slice(m.index+m[0].length).trim();if(c)run(c);else{armed=Date.now()+8000;speak('Yes?')}}
+ else if(Date.now()<armed){armed=0;run(t)}
+}
+function pttStart(){
+ if(!SR)return toast('Speech recognition needs Chrome, Edge or Safari');
+ hold=true;try{rec&&rec.stop()}catch(e){}
+ const r=newRec(false,t=>run(t));r.onend=()=>{hold=false;if(listening)startListen()};
+ $('#bPtt').classList.add('on');window._ptt=r;try{r.start()}catch(e){}
+}
+function pttEnd(){$('#bPtt').classList.remove('on');try{window._ptt&&window._ptt.stop()}catch(e){}}
+
+function run(raw){
+ const c=raw.toLowerCase().replace(/[.!?,]+$/,'').trim();log('You',raw);let m;
+ if((m=c.match(/^(?:save|add|create|take|make)(?: a| new)? note(?: that| to| about| saying)?\s+(.+)/))||(m=c.match(/^note\s+(.+)/))){addNote(m[1]);return speak('I have saved your note.')}
+ if(m=c.match(/^(?:add|create|new)(?: a)?(?: (high|medium|low) priority)? task(?: to| that)?\s+(.+)/)){addMemory('tasks',{text:m[2],done:false,priority:m[1]||'medium'});return speak(`Task added: ${m[2]}.`)}
+ if(m=c.match(/^(?:complete|finish|check off|mark)(?: the)? task\s+(.+?)(?: as done| done)?$/)){const t=find('tasks',m[1]);if(!t)return speak('I couldn’t find that task.');editMemory('tasks',t.id,{done:true});return speak('Task completed.')}
+ if(m=c.match(/^(?:delete|remove) task\s+(.+)/)){const t=find('tasks',m[1]);if(!t)return speak('I couldn’t find that task.');deleteMemory('tasks',t.id);return speak('Task deleted.')}
+ if(/^(?:delete|remove)(?: the)? last note/.test(c)){if(!D.notes.length)return speak('There are no notes to delete.');deleteMemory('notes',D.notes[0].id);return speak('Your last note is deleted.')}
+ if(m=c.match(/^(?:delete|remove) note\s+(.+)/)){const n=find('notes',m[1]);if(!n)return speak('I couldn’t find that note.');deleteMemory('notes',n.id);return speak('Note deleted.')}
+ if(/priority/.test(c)&&(m=c.match(/\b(high|medium|low)\b/))){
+  const q=c.replace(/\b(set|change|make|priority|of|for|to|task|high|medium|low)\b/g,'').replace(/\s+/g,' ').trim(),t=q&&find('tasks',q);
+  if(!t)return speak('Which task should I change?');editMemory('tasks',t.id,{priority:m[1]});return speak(`Priority set to ${m[1]}.`)}
+ if(m=c.match(/^(?:search|find)(?: for)? notes?(?: for| about)?\s+(.+)/)){go('memory');$('#nq').value=m[1];renderNotes();const n=filterNotes().length;return speak(`${n} note${n==1?'':'s'} match.`)}
+ if(/^(?:show|read|list|open)(?: my)? notes?$/.test(c)){go('memory');$('#nq').value='';renderNotes();const n=D.notes.length;return speak(n?`You have ${n} note${n==1?'':'s'}. The latest is ${D.notes[0].title}.`:'You have no notes yet.')}
+ if(/^(?:show|read|list|open)(?: my)? tasks?$/.test(c)){go('tasks');const o=D.tasks.filter(t=>!t.done);return speak(o.length?`You have ${o.length} open task${o.length==1?'':'s'}. First: ${o.sort((a,b)=>rank[a.priority]-rank[b.priority])[0].text}.`:'You have no open tasks.')}
+ if(m=c.match(/^(?:go to|open|show)\s+(home|memory|tasks|voice|settings)/)){go(m[1]);return speak(`Opening ${m[1]}.`)}
+ if(/^(?:stop listening|go to sleep)/.test(c)){speak('Going quiet.');return stopListen()}
+ speak('I don’t have a command for that yet.');
+}
+
+/* ---------- Events ---------- */
+document.addEventListener('click',e=>{
+ const g=e.target.closest('[data-go]');if(g)return go(g.dataset.go);
+ const b=e.target.closest('[data-act]');if(!b)return;const id=b.dataset.id;
+ ({
+  listen:()=>listening?stopListen():startListen(),
+  mute:()=>{muted=!muted;if(muted&&window.speechSynthesis)speechSynthesis.cancel();orb()},
+  connect:()=>{if(!clientId){go('settings');return toast('Add your Google client ID first')}if(!tc)initAuth();if(!tc)return toast('Google sign-in is still loading');tc.requestAccessToken({prompt:token?'':'consent'})},
+  disconnect:()=>{if(token&&window.google)google.accounts.oauth2.revoke(token);token=null;fileId=null;setDrive();toast('Drive disconnected')},
+  'save-cid':()=>{clientId=$('#cid').value.trim();try{localStorage.setItem('mj_client_id',clientId)}catch(e){}initAuth();toast('Client ID saved')},
+  'save-note':saveNote,'cancel-note':resetNoteForm,
+  'edit-note':()=>{const n=D.notes.find(x=>x.id===id);editId=id;$('#nt').value=n.title;$('#nb').value=n.body;$('#nform').textContent='Edit note';$('#nsave').textContent='Update note';$('#ncancel').hidden=false;$('main').scrollTop=0},
+  'del-note':()=>{if(confirm('Delete this note?'))deleteMemory('notes',id)},
+  'add-task':addTask,
+  'done-task':()=>editMemory('tasks',id,{done:b.checked}),
+  'prio-task':()=>{const t=D.tasks.find(x=>x.id===id);editMemory('tasks',id,{priority:['high','medium','low'][(rank[t.priority]+1)%3]})},
+  'del-task':()=>deleteMemory('tasks',id),
+  'send-cmd':()=>{const v=$('#cmd').value.trim();if(v){$('#cmd').value='';run(v)}}
+ })[b.dataset.act]?.();
+});
+$('#nq').oninput=renderNotes;
+$('#tt').onkeydown=e=>{if(e.key==='Enter')addTask()};
+$('#cmd').onkeydown=e=>{if(e.key==='Enter')$('[data-act=send-cmd]').click()};
+$('#wake').onchange=e=>{D.settings.wake=e.target.value.trim()||'jarvis';saveMemory();orb()};
+$('#rate').onchange=e=>{D.settings.rate=+e.target.value;saveMemory()};
+$('#vsel').onchange=e=>{D.settings.voice=e.target.value;saveMemory()};
+const p=$('#bPtt');['mousedown','touchstart'].forEach(v=>p.addEventListener(v,e=>{e.preventDefault();pttStart()}));
+['mouseup','mouseleave','touchend'].forEach(v=>p.addEventListener(v,pttEnd));
+if(window.speechSynthesis)speechSynthesis.onvoiceschanged=loadVoices;
+
+const h=new Date().getHours();
+$('#greet').textContent=(h<12?'Good morning':h<18?'Good afternoon':'Good evening')+'. Jarvs is online.';
+fillSettings();render();
+if(window.google)initAuth();
+moveInd();requestAnimationFrame(()=>$('.ind').classList.add('ready'));
+addEventListener('resize',moveInd);if(document.fonts)document.fonts.ready.then(moveInd);
+</script></body></html>
