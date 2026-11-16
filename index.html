@@ -114,6 +114,7 @@ label{display:block;margin:10px 0 4px;color:var(--dim);font-size:14px}
    <label for="cid">OAuth client ID (Web application)</label><input id="cid" placeholder="123456-abc.apps.googleusercontent.com">
    <div class="row" style="margin-top:10px"><button class="btn pri" data-act="save-cid">Save client ID</button><button class="btn" data-act="connect">Connect</button><button class="btn danger" data-act="disconnect">Disconnect</button></div>
    <p class="dim" style="margin-top:10px">Create a Web OAuth client in Google Cloud, enable the Drive API, and add this page’s address under Authorized JavaScript origins. Jarvs keeps its memory in one file, jarvis_data.json, in your Drive.</p></div>
+  <div class="glass pad"><h3>AI brain</h3><label for="akey">Anthropic API key</label><input id="akey" type="password" autocomplete="off" placeholder="sk-ant-…"><p class="dim" style="margin-top:10px">Lets Jarvs follow any request, not just built-in commands. Get a key at console.anthropic.com and set a spending limit there. The key stays on this device only, and your requests are sent to Anthropic.</p></div>
   <div class="glass pad"><h3>Voice</h3>
    <label for="wake">Wake word</label><input id="wake">
    <label for="rate">Speech speed</label><input id="rate" type="range" min=".7" max="1.4" step=".1">
@@ -128,7 +129,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 const DEF=()=>({notes:[],tasks:[],research:[],settings:{wake:'jarvis',rate:1,voice:''},conversations:[]});
-let D=DEF(),token=null,fileId=null,tc=null,saveT,muted=false,listening=false,speaking=false,hold=false,armed=0,rec=null,editId=null;
+let D=DEF(),token=null,fileId=null,tc=null,saveT,muted=false,listening=false,speaking=false,hold=false,armed=0,lastSpoke=0,rec=null,editId=null;
 let clientId='';try{clientId=localStorage.getItem('mj_client_id')||''}catch(e){} // only bootstrap setting; all data lives in Drive
 
 /* ---------- Google auth + Drive memory ---------- */
@@ -231,7 +232,7 @@ function speak(t){
  log('J',t);if(muted||!window.speechSynthesis)return;
  const u=new SpeechSynthesisUtterance(t);u.rate=+D.settings.rate||1;
  const v=speechSynthesis.getVoices().find(x=>x.name===D.settings.voice);if(v)u.voice=v;
- u.onstart=()=>{speaking=true;orb()};u.onend=u.onerror=()=>{speaking=false;orb()};speechSynthesis.speak(u);
+ u.onstart=()=>{speaking=true;orb()};u.onend=u.onerror=()=>{speaking=false;lastSpoke=Date.now();orb()};speechSynthesis.speak(u);
 }
 function newRec(cont,onText){
  const r=new SR();r.continuous=cont;r.interimResults=false;r.lang='en-US';
@@ -247,10 +248,10 @@ function startListen(){
 }
 function stopListen(){listening=false;try{rec&&rec.stop()}catch(e){}orb()}
 function heard(t){
- if(speaking)return;
- const re=new RegExp('\\b('+(D.settings.wake||'jarvis').replace(/[^\w ]/g,'')+'|jarvis|jarvus|jervis|travis|java)\\b[,.]?\\s*','i'),m=t.match(re);
+ if(speaking||Date.now()-lastSpoke<900)return;
+ const re=new RegExp('\\b('+(D.settings.wake||'jarvis').replace(/[^\w ]/g,'')+'|jarvis|jarvus|jervis|travis|jarvs|java)\\b[,.]?\\s*','i'),m=t.match(re);
  if(m){const c=t.slice(m.index+m[0].length).trim();if(c)run(c);else{armed=Date.now()+8000;speak('Yes?')}}
- else if(Date.now()<armed){armed=0;run(t)}
+ else if(Date.now()<armed){if(/^(yes|yeah)\W*$/i.test(t))return;armed=0;run(t)}
 }
 function pttStart(){
  if(!SR)return toast('Speech recognition needs Chrome, Edge or Safari');
@@ -260,8 +261,63 @@ function pttStart(){
 }
 function pttEnd(){$('#bPtt').classList.remove('on');try{window._ptt&&window._ptt.stop()}catch(e){}}
 
+let torchTrack=null;
+async function torch(on,q){const sp=q?()=>{}:speak;
+ try{
+  if(!on){if(!torchTrack)return sp('The flashlight is already off.');torchTrack.stop();torchTrack=null;return sp('Flashlight off.')}
+  if(torchTrack)return sp('The flashlight is already on.');
+  const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}),tr=st.getVideoTracks()[0];
+  if(!(tr.getCapabilities&&tr.getCapabilities().torch)){tr.stop();return sp('This browser can’t control the flashlight. Chrome on Android can.')}
+  await tr.applyConstraints({advanced:[{torch:true}]});torchTrack=tr;sp('Flashlight on.');
+ }catch(e){sp('I couldn’t turn on the flashlight. Allow camera access for this page.')}
+}
+let apiKey='';try{apiKey=localStorage.getItem('mj_api_key')||''}catch(e){}
+const TOOLS=[
+ {name:'add_note',description:'Save a note',input_schema:{type:'object',properties:{text:{type:'string'},title:{type:'string'}},required:['text']}},
+ {name:'delete_note',description:'Delete the note best matching these words',input_schema:{type:'object',properties:{query:{type:'string'}},required:['query']}},
+ {name:'list_notes',description:'Read saved notes, optionally filtered by a search word',input_schema:{type:'object',properties:{query:{type:'string'}}}},
+ {name:'add_task',description:'Add a task',input_schema:{type:'object',properties:{text:{type:'string'},priority:{type:'string',enum:['high','medium','low']}},required:['text']}},
+ {name:'update_task',description:'Complete, delete or change the priority of the task best matching these words',input_schema:{type:'object',properties:{query:{type:'string'},done:{type:'boolean'},delete:{type:'boolean'},priority:{type:'string',enum:['high','medium','low']}},required:['query']}},
+ {name:'list_tasks',description:'Read all tasks',input_schema:{type:'object',properties:{}}},
+ {name:'navigate',description:'Open a section of the app',input_schema:{type:'object',properties:{section:{type:'string',enum:['home','memory','tasks','voice','settings']}},required:['section']}},
+ {name:'flashlight',description:'Turn the phone flashlight on or off',input_schema:{type:'object',properties:{on:{type:'boolean'}},required:['on']}}
+];
+function tool(n,a){
+ const q=(a.query||'').toLowerCase();
+ if(n==='add_note'){addNote(a.text,a.title);return 'Saved.'}
+ if(n==='delete_note'){const x=find('notes',q);if(!x)return 'No match.';deleteMemory('notes',x.id);return 'Deleted.'}
+ if(n==='list_notes'){const l=D.notes.filter(x=>!q||(x.title+' '+x.body).toLowerCase().includes(q)).slice(0,10);return l.length?l.map(x=>x.title+': '+x.body).join('\n'):'No notes.'}
+ if(n==='add_task'){addMemory('tasks',{text:a.text,done:false,priority:a.priority||'medium'});return 'Added.'}
+ if(n==='update_task'){const x=find('tasks',q);if(!x)return 'No match.';if(a.delete){deleteMemory('tasks',x.id);return 'Deleted.'}const p={};if(a.done!==undefined)p.done=a.done;if(a.priority)p.priority=a.priority;editMemory('tasks',x.id,p);return 'Updated.'}
+ if(n==='list_tasks')return D.tasks.length?D.tasks.map(x=>(x.done?'[done] ':'')+x.priority+': '+x.text).join('\n'):'No tasks.';
+ if(n==='navigate'){go(a.section);return 'Opened.'}
+ if(n==='flashlight'){torch(a.on!==false,true);return 'Done.'}
+ return 'Unknown tool.';
+}
+const sys=()=>`You are Jarvs, a personal voice assistant inside a dashboard that holds the user's notes and tasks. Your replies are spoken aloud, so answer in one to three short plain sentences with no markdown or lists. Use the tools to save notes, manage tasks, open sections or switch the flashlight when asked, then confirm in a few words. Current time: ${new Date().toString()}. Recent conversation:\n${D.conversations.slice(-9,-1).map(x=>(x.who==='J'?'Jarvs: ':'User: ')+x.text).join('\n')}`;
+async function askAI(q){
+ if(!apiKey)return speak('I don’t have a built-in command for that. Add an Anthropic API key in Settings and I can handle anything you ask.');
+ $('#stateTxt').textContent='Thinking…';
+ const msgs=[{role:'user',content:q}];
+ try{
+  for(let i=0;i<5;i++){
+   const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:D.settings.model||'claude-haiku-5-5',max_tokens:400,system:sys(),tools:TOOLS,messages:msgs})});
+   if(!r.ok)throw new Error(r.status);
+   const d=await r.json();msgs.push({role:'assistant',content:d.content});
+   const uses=d.content.filter(b=>b.type==='tool_use');
+   if(!uses.length)return speak(d.content.filter(b=>b.type==='text').map(b=>b.text).join(' ').trim()||'Done.');
+   msgs.push({role:'user',content:uses.map(u=>({type:'tool_result',tool_use_id:u.id,content:String(tool(u.name,u.input||{}))}))});
+  }
+  speak('Done.');
+ }catch(e){speak(e.message==='401'?'My API key was rejected. Check it in Settings.':'I couldn’t reach my AI brain just now.')}
+}
 function run(raw){
- const c=raw.toLowerCase().replace(/[.!?,]+$/,'').trim();log('You',raw);let m;
+ let c=raw.toLowerCase().replace(/[.!?,:;"“”]+/g,' ').replace(/\s+/g,' ').trim();
+ const wk=(D.settings.wake||'jarvis').toLowerCase().replace(/[^\w ]/g,'');
+ c=c.replace(new RegExp('^(?:hey |ok |okay )?(?:'+wk+'|jarvis|jarvus|jervis|travis|java|jarvs)\\s*'),'').replace(/^(?:please |can you |could you )/,'').replace(/^(?:ad|at|and|ed|had) (?=(?:a |new )?(?:note|task|high|medium|low)\b)/,'add ');
+ log('You',raw);let m;
+ if(!c){armed=Date.now()+8000;return speak('Yes?')}
+ if(/\b(flash ?light|torch)\b/.test(c))return torch(!/\b(off|close|stop|disable)\b/.test(c));
  if((m=c.match(/^(?:save|add|create|take|make)(?: a| new)? note(?: that| to| about| saying)?\s+(.+)/))||(m=c.match(/^note\s+(.+)/))){addNote(m[1]);return speak('I have saved your note.')}
  if(m=c.match(/^(?:add|create|new)(?: a)?(?: (high|medium|low) priority)? task(?: to| that)?\s+(.+)/)){addMemory('tasks',{text:m[2],done:false,priority:m[1]||'medium'});return speak(`Task added: ${m[2]}.`)}
  if(m=c.match(/^(?:complete|finish|check off|mark)(?: the)? task\s+(.+?)(?: as done| done)?$/)){const t=find('tasks',m[1]);if(!t)return speak('I couldn’t find that task.');editMemory('tasks',t.id,{done:true});return speak('Task completed.')}
@@ -276,7 +332,7 @@ function run(raw){
  if(/^(?:show|read|list|open)(?: my)? tasks?$/.test(c)){go('tasks');const o=D.tasks.filter(t=>!t.done);return speak(o.length?`You have ${o.length} open task${o.length==1?'':'s'}. First: ${o.sort((a,b)=>rank[a.priority]-rank[b.priority])[0].text}.`:'You have no open tasks.')}
  if(m=c.match(/^(?:go to|open|show)\s+(home|memory|tasks|voice|settings)/)){go(m[1]);return speak(`Opening ${m[1]}.`)}
  if(/^(?:stop listening|go to sleep)/.test(c)){speak('Going quiet.');return stopListen()}
- speak('I don’t have a command for that yet.');
+ return askAI(raw);
 }
 
 /* ---------- Events ---------- */
@@ -309,6 +365,8 @@ const p=$('#bPtt');['mousedown','touchstart'].forEach(v=>p.addEventListener(v,e=
 ['mouseup','mouseleave','touchend'].forEach(v=>p.addEventListener(v,pttEnd));
 if(window.speechSynthesis)speechSynthesis.onvoiceschanged=loadVoices;
 
+$('#akey').placeholder=apiKey?'Key saved on this device':'sk-ant-…';
+$('#akey').onchange=e=>{apiKey=e.target.value.trim();try{localStorage.setItem('mj_api_key',apiKey)}catch(_){}e.target.value='';e.target.placeholder=apiKey?'Key saved on this device':'sk-ant-…';toast(apiKey?'API key saved':'API key removed')};
 const h=new Date().getHours();
 $('#greet').textContent=(h<12?'Good morning':h<18?'Good afternoon':'Good evening')+'. Jarvs is online.';
 fillSettings();render();
