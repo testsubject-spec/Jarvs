@@ -114,7 +114,8 @@ label{display:block;margin:10px 0 4px;color:var(--dim);font-size:14px}
    <label for="cid">OAuth client ID (Web application)</label><input id="cid" placeholder="123456-abc.apps.googleusercontent.com">
    <div class="row" style="margin-top:10px"><button class="btn pri" data-act="save-cid">Save client ID</button><button class="btn" data-act="connect">Connect</button><button class="btn danger" data-act="disconnect">Disconnect</button></div>
    <p class="dim" style="margin-top:10px">Create a Web OAuth client in Google Cloud, enable the Drive API, and add this page’s address under Authorized JavaScript origins. Jarvs keeps its memory in one file, jarvis_data.json, in your Drive.</p></div>
-  <div class="glass pad"><h3>AI brain</h3><label for="akey">Anthropic API key</label><input id="akey" type="password" autocomplete="off" placeholder="sk-ant-…"><p class="dim" style="margin-top:10px">Lets Jarvs follow any request, not just built-in commands. Get a key at console.anthropic.com and set a spending limit there. The key stays on this device only, and your requests are sent to Anthropic.</p></div>
+  <div class="glass pad"><h3>AI brain</h3><label for="akey">Google Gemini API key (free)</label><input id="akey" type="password" autocomplete="off" placeholder="Paste key"><label for="amodel">Model (optional)</label><input id="amodel" placeholder="gemini-flash-latest"><p class="dim" style="margin-top:10px">Lets Jarvs follow any request. Get a free key at aistudio.google.com/apikey, with no card needed. The key stays on this device only. Google may use free-tier requests to improve its products, so keep private things out of it. Anthropic keys that start with sk-ant also work.</p></div>
+  <div class="glass pad"><h3>Premium voice (Adam)</h3><label for="ekey">ElevenLabs API key</label><input id="ekey" type="password" autocomplete="off" placeholder="Paste key"><label for="evoice">Voice ID</label><input id="evoice" placeholder="pNInz6obpgDQGcFmaJgB"><p class="dim" style="margin-top:10px">Adam is an ElevenLabs voice. Get a key at elevenlabs.io. It stays on this device only. Leave the key empty to use the phone’s own voice.</p></div>
   <div class="glass pad"><h3>Voice</h3>
    <label for="wake">Wake word</label><input id="wake">
    <label for="rate">Speech speed</label><input id="rate" type="range" min=".7" max="1.4" step=".1">
@@ -209,7 +210,7 @@ function render(){
  $('#sN').textContent=D.notes.length;$('#sT').textContent=D.tasks.filter(t=>!t.done).length;$('#sC').textContent=D.conversations.filter(c=>c.who==='You').length;
  renderNotes();renderTasks();renderLogs();orb();
 }
-function fillSettings(){$('#cid').value=clientId;$('#wake').value=D.settings.wake;$('#rate').value=D.settings.rate;loadVoices()}
+function fillSettings(){$('#cid').value=clientId;$('#amodel').value=D.settings.model||'';$('#evoice').value=D.settings.elVoice||'';$('#wake').value=D.settings.wake;$('#rate').value=D.settings.rate;loadVoices()}
 function loadVoices(){
  const v=window.speechSynthesis?speechSynthesis.getVoices():[];
  $('#vsel').innerHTML='<option value="">Default</option>'+v.map(x=>`<option ${x.name===D.settings.voice?'selected':''}>${esc(x.name)}</option>`).join('');
@@ -228,10 +229,20 @@ function addTask(){const t=$('#tt').value.trim();if(!t)return;addMemory('tasks',
 /* ---------- Voice ---------- */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 function log(who,text){D.conversations.push({id:uid(),t:Date.now(),who,text});if(D.conversations.length>100)D.conversations.shift();saveMemory();renderLogs();$('#sC').textContent=D.conversations.filter(c=>c.who==='You').length}
+let elKey='',elAudio=null;try{elKey=localStorage.getItem('mj_el_key')||''}catch(e){}
+async function elSpeak(t){
+ try{
+  const r=await fetch('https://api.elevenlabs.io/v1/text-to-speech/'+(D.settings.elVoice||'pNInz6obpgDQGcFmaJgB'),{method:'POST',headers:{'xi-api-key':elKey,'content-type':'application/json',accept:'audio/mpeg'},body:JSON.stringify({text:t,model_id:'eleven_turbo_v2_5'})});
+  if(!r.ok)throw new Error(r.status);
+  const url=URL.createObjectURL(await r.blob());if(elAudio)elAudio.pause();
+  elAudio=new Audio(url);elAudio.onplay=()=>{speaking=true;orb()};elAudio.onended=elAudio.onerror=()=>{speaking=false;lastSpoke=Date.now();orb();URL.revokeObjectURL(url)};
+  await elAudio.play();
+ }catch(e){speaking=false;orb();toast('The ElevenLabs voice failed. Check the key in Settings.');if(window.speechSynthesis)speechSynthesis.speak(new SpeechSynthesisUtterance(t))}
+}
 function speak(t){
- log('J',t);if(muted||!window.speechSynthesis)return;
- const u=new SpeechSynthesisUtterance(t);u.rate=+D.settings.rate||1;
- const v=speechSynthesis.getVoices().find(x=>x.name===D.settings.voice);if(v)u.voice=v;
+ log('J',t);if(muted)return;if(elKey)return elSpeak(t);if(!window.speechSynthesis)return;
+ const u=new SpeechSynthesisUtterance(t);u.rate=+D.settings.rate||1;u.pitch=.85;
+ const vs=speechSynthesis.getVoices(),v=vs.find(x=>x.name===D.settings.voice)||(!D.settings.voice&&vs.find(x=>/^en[-_]GB/i.test(x.lang)&&/male|daniel|george|ryan/i.test(x.name)&&!/female/i.test(x.name)));if(v)u.voice=v;
  u.onstart=()=>{speaking=true;orb()};u.onend=u.onerror=()=>{speaking=false;lastSpoke=Date.now();orb()};speechSynthesis.speak(u);
 }
 function newRec(cont,onText){
@@ -296,20 +307,32 @@ function tool(n,a){
 }
 const sys=()=>`You are Jarvs, a personal voice assistant inside a dashboard that holds the user's notes and tasks. Your replies are spoken aloud, so answer in one to three short plain sentences with no markdown or lists. Use the tools to save notes, manage tasks, open sections or switch the flashlight when asked, then confirm in a few words. Current time: ${new Date().toString()}. Recent conversation:\n${D.conversations.slice(-9,-1).map(x=>(x.who==='J'?'Jarvs: ':'User: ')+x.text).join('\n')}`;
 async function askAI(q){
- if(!apiKey)return speak('I don’t have a built-in command for that. Add an Anthropic API key in Settings and I can handle anything you ask.');
+ if(!apiKey)return speak('I don’t have a built-in command for that. Add a free Google Gemini key in Settings and I can handle anything you ask.');
  $('#stateTxt').textContent='Thinking…';
- const msgs=[{role:'user',content:q}];
+ const gem=!/^sk-ant/.test(apiKey),model=D.settings.model||(gem?'gemini-flash-latest':'claude-haiku-5-5');
+ const msgs=[{role:'user',...(gem?{parts:[{text:q}]}:{content:q})}];
  try{
   for(let i=0;i<5;i++){
-   const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:D.settings.model||'claude-haiku-5-5',max_tokens:400,system:sys(),tools:TOOLS,messages:msgs})});
-   if(!r.ok)throw new Error(r.status);
-   const d=await r.json();msgs.push({role:'assistant',content:d.content});
-   const uses=d.content.filter(b=>b.type==='tool_use');
-   if(!uses.length)return speak(d.content.filter(b=>b.type==='text').map(b=>b.text).join(' ').trim()||'Done.');
-   msgs.push({role:'user',content:uses.map(u=>({type:'tool_result',tool_use_id:u.id,content:String(tool(u.name,u.input||{}))}))});
+   if(gem){
+    const decl=TOOLS.map(t=>Object.keys(t.input_schema.properties).length?{name:t.name,description:t.description,parameters:t.input_schema}:{name:t.name,description:t.description});
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({systemInstruction:{parts:[{text:sys()}]},contents:msgs,tools:[{functionDeclarations:decl}]})});
+    if(!r.ok)throw new Error(r.status);
+    const c=((await r.json()).candidates||[])[0]?.content;if(!c)throw new Error('empty');
+    const parts=c.parts||[];msgs.push({role:'model',parts});
+    const calls=parts.filter(p=>p.functionCall).map(p=>p.functionCall);
+    if(!calls.length)return speak(parts.map(p=>p.text||'').join(' ').trim()||'Done.');
+    msgs.push({role:'user',parts:calls.map(f=>({functionResponse:{name:f.name,response:{result:String(tool(f.name,f.args||{}))}}}))});
+   }else{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model,max_tokens:400,system:sys(),tools:TOOLS,messages:msgs})});
+    if(!r.ok)throw new Error(r.status);
+    const d=await r.json();msgs.push({role:'assistant',content:d.content});
+    const uses=d.content.filter(b=>b.type==='tool_use');
+    if(!uses.length)return speak(d.content.filter(b=>b.type==='text').map(b=>b.text).join(' ').trim()||'Done.');
+    msgs.push({role:'user',content:uses.map(u=>({type:'tool_result',tool_use_id:u.id,content:String(tool(u.name,u.input||{}))}))});
+   }
   }
   speak('Done.');
- }catch(e){speak(e.message==='401'?'My API key was rejected. Check it in Settings.':'I couldn’t reach my AI brain just now.')}
+ }catch(e){speak(['400','401','403'].includes(e.message)?'My API key was rejected. Check the key and model in Settings.':e.message==='429'?'I’ve hit the free usage limit. Try again in a minute.':'I couldn’t reach my AI brain just now.')}
 }
 function run(raw){
  let c=raw.toLowerCase().replace(/[.!?,:;"“”]+/g,' ').replace(/\s+/g,' ').trim();
@@ -341,7 +364,7 @@ document.addEventListener('click',e=>{
  const b=e.target.closest('[data-act]');if(!b)return;const id=b.dataset.id;
  ({
   listen:()=>listening?stopListen():startListen(),
-  mute:()=>{muted=!muted;if(muted&&window.speechSynthesis)speechSynthesis.cancel();orb()},
+  mute:()=>{muted=!muted;if(muted){if(window.speechSynthesis)speechSynthesis.cancel();if(elAudio)elAudio.pause()}orb()},
   connect:()=>{if(!clientId){go('settings');return toast('Add your Google client ID first')}if(!tc)initAuth();if(!tc)return toast('Google sign-in is still loading');tc.requestAccessToken({prompt:token?'':'consent'})},
   disconnect:()=>{if(token&&window.google)google.accounts.oauth2.revoke(token);token=null;fileId=null;setDrive();toast('Drive disconnected')},
   'save-cid':()=>{clientId=$('#cid').value.trim();try{localStorage.setItem('mj_client_id',clientId)}catch(e){}initAuth();toast('Client ID saved')},
@@ -365,8 +388,12 @@ const p=$('#bPtt');['mousedown','touchstart'].forEach(v=>p.addEventListener(v,e=
 ['mouseup','mouseleave','touchend'].forEach(v=>p.addEventListener(v,pttEnd));
 if(window.speechSynthesis)speechSynthesis.onvoiceschanged=loadVoices;
 
-$('#akey').placeholder=apiKey?'Key saved on this device':'sk-ant-…';
-$('#akey').onchange=e=>{apiKey=e.target.value.trim();try{localStorage.setItem('mj_api_key',apiKey)}catch(_){}e.target.value='';e.target.placeholder=apiKey?'Key saved on this device':'sk-ant-…';toast(apiKey?'API key saved':'API key removed')};
+$('#akey').placeholder=apiKey?'Key saved on this device':'Paste key';
+$('#akey').onchange=e=>{apiKey=e.target.value.trim();try{localStorage.setItem('mj_api_key',apiKey)}catch(_){}e.target.value='';e.target.placeholder=apiKey?'Key saved on this device':'Paste key';toast(apiKey?'API key saved':'API key removed')};
+$('#ekey').placeholder=elKey?'Key saved on this device':'Paste key';
+$('#ekey').onchange=e=>{elKey=e.target.value.trim();try{localStorage.setItem('mj_el_key',elKey)}catch(_){}e.target.value='';e.target.placeholder=elKey?'Key saved on this device':'Paste key';toast(elKey?'Voice key saved':'Voice key removed')};
+$('#evoice').value=D.settings.elVoice||'';$('#evoice').onchange=e=>{D.settings.elVoice=e.target.value.trim();saveMemory()};
+$('#amodel').onchange=e=>{D.settings.model=e.target.value.trim();saveMemory()};
 const h=new Date().getHours();
 $('#greet').textContent=(h<12?'Good morning':h<18?'Good afternoon':'Good evening')+'. Jarvs is online.';
 fillSettings();render();
